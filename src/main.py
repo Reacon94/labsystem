@@ -38,6 +38,8 @@ class Test(BaseModel):
     sample_id: str = Field(..., description="ID of the sample associated with the test")
     test_type: str = Field(..., description="Type of the test")
     result: Optional[str] = Field(None, description="Result of the test")
+    units: Optional[str] = Field(None, description="Units of the test result")
+    
 
 # Sample creation endpoint
 @app.post("/samples/", response_model=Sample)
@@ -96,6 +98,11 @@ async def create_test(test: Test):
     test_dict["_id"] = str(result.inserted_id)  # Add the new ObjectId to the test dict
     return test_dict
 
+@app.get("/tests/", response_model=List[Test])
+async def list_tests():
+    tests = list(tests_collection.find())
+    return [convert_objectid(test) for test in tests]
+
 # Test creation endpoint for a specific sample
 @app.post("/samples/{sample_id}/tests", response_model=Test)
 async def create_test_for_sample(sample_id: str, test: Test):
@@ -110,3 +117,18 @@ async def create_test_for_sample(sample_id: str, test: Test):
 async def list_tests_for_sample(sample_id: str):
     tests = list(tests_collection.find({"sample_id": sample_id}))
     return [convert_objectid(test) for test in tests]
+
+# Test update endpoint for a specific sample
+@app.put("/samples/{sample_id}/tests/{test_type}", response_model=Test)
+async def update_test(sample_id: str, test_type: str, test: Test):
+    result = tests_collection.find_one_and_update(
+        {"sample_id": sample_id, "test_type": test_type},
+        {"$set": test.dict(exclude_unset=True)},
+        return_document=True
+    )
+    if result:
+        result["_id"] = str(result["_id"])  # Convert ObjectId to string for JSON
+        return result
+    else:
+        raise HTTPException(status_code=404, detail="Test not found")
+
